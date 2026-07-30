@@ -1,9 +1,11 @@
+import datetime
 from PyQt5.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QFormLayout, QTableWidget, \
     QTableWidgetItem, QLineEdit, QPushButton, QMessageBox, QDateEdit, QCheckBox, QAbstractItemView, QHeaderView, QLabel, QDateTimeEdit
 from PyQt5.QtCore import QDate
 from PyQt5.QtGui import QColor
 from db_helper import DB, DB_CONFIG
 from edit_item_dialog import EditItemDialog
+from history_dialog import HistoryDialog
 
 LOW_STOCK_COLOR = QColor("#FFCDD2")  # 부족 재고 행 배경색
 
@@ -13,13 +15,13 @@ class Mainwindow(QMainWindow):
         self.db = DB(**DB_CONFIG)
         self.store_code = store_code
         self.setWindowTitle(f"{store_code} 점포 재고현황")
-        self.resize(800, 500)
+        self.resize(900, 600)
 
         central = QWidget()
         self.setCentralWidget(central)
-        vbox = QVBoxLayout(central)
+        viewbox = QVBoxLayout(central)
 
-        # 검색 필터 (상품명/상품코드 키워드 + 가격 범위)
+        # 검색 필터 (상품명/상품코드 키워드 + 입고일)
         self.search_keyword = QLineEdit()
         self.search_keyword.setFixedWidth(400)
         self.search_keyword.setPlaceholderText("상품명/상품코드 검색")
@@ -30,44 +32,37 @@ class Mainwindow(QMainWindow):
         self.search_date.setDate(self.search_date.minimumDate())
         self.date_filter_enabled = False
         self.search_date.setCalendarPopup(True)
-        
         self.search_date.dateChanged.connect(self.on_date_changed)
-
-        # self.search_price_min = QLineEdit()
-        # self.search_price_min.setPlaceholderText("최소 가격")
-        # self.search_price_min.textChanged.connect(self.load_items)
-        # self.search_price_max = QLineEdit()
-        # self.search_price_max.setPlaceholderText("최대 가격")
-        # self.search_price_max.textChanged.connect(self.load_items)
 
         search_box = QHBoxLayout()
         search_box.addWidget(self.search_keyword)
         search_box.addWidget(self.search_date)
-        # search_box.addWidget(self.search_price_min)
-        # search_box.addWidget(self.search_price_max)
-        vbox.addLayout(search_box)
+        viewbox.addLayout(search_box)
         self.btn_clear_date = QPushButton('날짜 필터 해제')
         search_box.addWidget(self.btn_clear_date)
         self.btn_clear_date.clicked.connect(self.clear_date_filter)
 
-
         # 부족 재고 필터
         self.chk_low_stock_only = QCheckBox("부족한 재고만 보기")
         self.chk_low_stock_only.stateChanged.connect(self.load_items)
-        vbox.addWidget(self.chk_low_stock_only)
+        viewbox.addWidget(self.chk_low_stock_only)
 
         # 재고 목록 테이블
         self.table = QTableWidget()
-        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
-        self.table.setColumnCount(10)
-        self.table.setHorizontalHeaderLabels(["일련번호", "상품코드", "상품명", "가격", "재고", "적정재고", "재고자산", "입고일", "만료일", "상태"])
+        # self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents) #각 열을 내용에 맞게 조정하는 설정
+        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch) # 모든 열이 비율대로 같이 늘어난느 설정
+        self.table.setColumnCount(11)
+        self.table.setHorizontalHeaderLabels(["일련번호", "상품코드", "상품명", "가격", "재고", "적정재고", "재고자산", "입고일", "만료일", "판매일", "상태"])
         self.table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.table.setEditTriggers(QAbstractItemView.NoEditTriggers)
-        vbox.addWidget(self.table)
+        self.table.cellDoubleClicked.connect(self.on_cell_double_clicked)
+        viewbox.addWidget(self.table)
 
-        # 재고자산 합계 표시
+        # 재고자산 합계 / 이번 달 매출 표시
         self.label_total_asset = QLabel("총 재고자산: 0")
-        vbox.addWidget(self.label_total_asset)
+        viewbox.addWidget(self.label_total_asset)
+        self.label_monthly_revenue = QLabel("이번 달 매출: 0")
+        viewbox.addWidget(self.label_monthly_revenue)
 
         # 상품 등록 입력 폼
         self.input_product_code = QLineEdit()
@@ -96,7 +91,7 @@ class Mainwindow(QMainWindow):
         form.addRow("입고일", self.input_stockdate)
         form.addRow("만료일", self.input_expdate)
         form.addRow("상태", self.input_status)
-        vbox.addLayout(form)
+        viewbox.addLayout(form)
 
         # 등록/수정/삭제 버튼
         btn_box = QHBoxLayout()
@@ -109,17 +104,16 @@ class Mainwindow(QMainWindow):
         btn_box.addWidget(self.btn_add)
         btn_box.addWidget(self.btn_edit)
         btn_box.addWidget(self.btn_delete)
-        vbox.addLayout(btn_box)
+        viewbox.addLayout(btn_box)
 
         self.load_items()
 
+    # 날짜 필터를 초기 상태(선택 안 함)로 되돌리고 전체 목록을 다시 표시
     def clear_date_filter(self):
         self.search_date.setDate(self.search_date.minimumDate())
         self.date_filter_enabled = False
         self.load_items()
 
-
-    
     def on_date_changed(self):
         self.date_filter_enabled = True
         self.load_items()
@@ -130,15 +124,11 @@ class Mainwindow(QMainWindow):
         show_low_stock_only = self.chk_low_stock_only.isChecked()
         keyword = self.search_keyword.text().strip().lower()
         date = self.search_date.date()
-        # price_min_text = self.search_price_min.text().strip()
-        # price_max_text = self.search_price_max.text().strip()
-        # price_min = int(price_min_text) if price_min_text.isdigit() else None
-        # price_max = int(price_max_text) if price_max_text.isdigit() else None
         self.table.setRowCount(0)
 
         row_index = 0
         for item in items:
-            items_code, product_code, name, price, number, min_stock, stockdate, expdate, status = item
+            items_code, product_code, name, price, number, min_stock, stockdate, expdate, status, last_sale_date = item
             asset = (price or 0) * (number or 0)
             status_text = "판매가능" if status else "판매불가"
             is_low_stock = min_stock is not None and number is not None and number <= min_stock
@@ -150,12 +140,7 @@ class Mainwindow(QMainWindow):
             if self.date_filter_enabled and stockdate.date() != date.toPyDate():
                 continue
 
-            # if price_min is not None and (price is None or price < price_min):
-            #     continue
-            # if price_max is not None and (price is None or price > price_max):
-            #     continue
-
-            display_values = [items_code, product_code, name, price, number, min_stock, asset, stockdate, expdate, status_text]
+            display_values = [items_code, product_code, name, price, number, min_stock, asset, stockdate, expdate, last_sale_date, status_text]
 
             self.table.insertRow(row_index)
             for col_index, value in enumerate(display_values):
@@ -166,11 +151,36 @@ class Mainwindow(QMainWindow):
             row_index += 1
 
         self.calculate_total_asset(items)
+        self.update_monthly_revenue_label()
 
     # 전체 재고자산(가격 x 수량)을 취합해 라벨에 표시
     def calculate_total_asset(self, items):
         total = sum((price or 0) * (number or 0) for _, _, _, price, number, *_ in items)
         self.label_total_asset.setText(f"총 재고자산: {total:,}")
+
+    # 이번 달 매출(판매 시점 가격 x 수량 합계)을 라벨에 표시
+    def update_monthly_revenue_label(self):
+        today = datetime.date.today()
+        revenue = self.db.fetch_monthly_revenue(self.store_code, today.year, today.month)
+        self.label_monthly_revenue.setText(f"이번 달 매출: {revenue:,}")
+
+    # 입고일/판매일 셀을 더블클릭하면 해당 이력 창을 띄움
+    def on_cell_double_clicked(self, row, column):
+        STOCKDATE_COL = 7
+        SALEDATE_COL = 9
+        if column not in (STOCKDATE_COL, SALEDATE_COL):
+            return
+
+        items_code = int(self.table.item(row, 0).text())
+        item = self.db.fetch_item(items_code)
+        if item is None:
+            QMessageBox.critical(self, "오류", "해당 상품을 찾을 수 없습니다.")
+            return
+
+        mode = "stockin" if column == STOCKDATE_COL else "sale"
+        dialog = HistoryDialog(self.db, item, mode, self)
+        dialog.exec_()
+        self.load_items()
 
     # 입력 폼 내용으로 상품 등록
     def add_item(self):
