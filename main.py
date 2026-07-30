@@ -61,6 +61,10 @@ class Mainwindow(QMainWindow):
         # 재고자산 합계 / 이번 달 매출 표시
         self.label_total_asset = QLabel("총 재고자산: 0")
         viewbox.addWidget(self.label_total_asset)
+
+        self.label_daily_revenue = QLabel("당일 매출: 0")
+        viewbox.addWidget(self.label_daily_revenue)
+
         self.label_monthly_revenue = QLabel("이번 달 매출: 0")
         viewbox.addWidget(self.label_monthly_revenue)
 
@@ -152,6 +156,7 @@ class Mainwindow(QMainWindow):
 
         self.calculate_total_asset(items)
         self.update_monthly_revenue_label()
+        self.update_daily_revenue_label()
 
     # 전체 재고자산(가격 x 수량)을 취합해 라벨에 표시
     def calculate_total_asset(self, items):
@@ -163,6 +168,13 @@ class Mainwindow(QMainWindow):
         today = datetime.date.today()
         revenue = self.db.fetch_monthly_revenue(self.store_code, today.year, today.month)
         self.label_monthly_revenue.setText(f"이번 달 매출: {revenue:,}")
+
+    def update_daily_revenue_label(self):
+        today = datetime.date.today()
+        revenue = self.db.fetch_daily_revenue(self.store_code, today.year, today.month, today.day)
+        self.label_daily_revenue.setText(f"당일 매출: {revenue:,}")
+
+
 
     # 입고일/판매일 셀을 더블클릭하면 해당 이력 창을 띄움
     def on_cell_double_clicked(self, row, column):

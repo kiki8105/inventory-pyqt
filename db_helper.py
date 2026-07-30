@@ -230,3 +230,17 @@ class DB:
                 cur.execute(sql, (store_code, year, month))
                 total, = cur.fetchone()
                 return total
+
+
+    def fetch_daily_revenue(self, store_code, year, month, day):
+        sql = """
+            SELECT COALESCE(SUM(Sales.Quantity * Sales.Price), 0)
+            FROM Sales
+            JOIN Items ON Sales.Items_code = Items.Items_code
+            WHERE Items.store_code = %s AND YEAR(Sales.SaleDate) = %s AND MONTH(Sales.SaleDate) = %s AND DAY(Sales.SaleDate) = %s
+        """
+        with self. connect() as conn:
+            with conn.cursor() as cur:
+                cur.execute(sql, (store_code, year, month, day))
+                total, = cur.fetchone()
+                return total
