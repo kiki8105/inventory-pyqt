@@ -30,6 +30,25 @@ CREATE TABLE Items (
         REFERENCES Stores(store_code)
 );
 
+CREATE TABLE StockIn ( -- 입고 이력 (배치 하나에 여러 번 입고될 수 있음)
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    Items_code INT NOT NULL, -- 어느 배치의 입고인지
+    StockInDate DATETIME NOT NULL, -- 입고일시
+    Quantity INT NOT NULL, -- 입고 수량
+    FOREIGN KEY (Items_code)
+        REFERENCES Items(Items_code)
+);
+
+CREATE TABLE Sales ( -- 판매(출고) 이력
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    Items_code INT NOT NULL, -- 어느 배치에서 판매됐는지
+    SaleDate DATETIME NOT NULL, -- 판매일시
+    Quantity INT NOT NULL, -- 판매 수량
+    Price INT NOT NULL, -- 판매 시점의 상품 가격 (매출 계산용)
+    FOREIGN KEY (Items_code)
+        REFERENCES Items(Items_code)
+);
+
 -- Stores 정보 입력
 INSERT INTO Stores (store_code, Name) VALUES
 (100001, '대전 둔산 직영점'),

@@ -90,14 +90,18 @@ class DB:
                 conn.rollback()
                 return False
 
-    # 상품(Items) 전체 조회 (점포별)
+    # 상품(Items) 전체 조회 (점포별). 마지막 판매일(LastSaleDate)은 판매 이력이 없으면 NULL
     def fetch_items(self, store_code):
-        sql = "SELECT Items_code, ProductCode, Name, Price, Number, MinStock, Stockdate, Expdate, Status FROM Items WHERE store_code = %s ORDER BY Items_code"
+        sql = """
+            SELECT Items_code, ProductCode, Name, Price, Number, MinStock, Stockdate, Expdate, Status,
+                   (SELECT MAX(SaleDate) FROM Sales WHERE Sales.Items_code = Items.Items_code) AS LastSaleDate
+            FROM Items WHERE store_code = %s ORDER BY Items_code
+        """
         with self.connect() as conn:
             with conn.cursor() as cur:
                 cur.execute(sql, (store_code,))
-                return cur.fetchall() 
-            # [(Items_code, ProductCode, Name, Price, Number, MinStock, Stockdate, Expdate, Status), ...]
+                return cur.fetchall()
+            # [(Items_code, ProductCode, Name, Price, Number, MinStock, Stockdate, Expdate, Status, LastSaleDate), ...]
 
     # 상품(Items) 추가 (Items_code는 자동 생성, 같은 ProductCode로 여러 배치 등록 가능)
     def insert_item(self, product_code, store_code, name, price, number, min_stock, stockdate, expdate, status):
@@ -106,11 +110,17 @@ class DB:
             try:
                 with conn.cursor() as cur:
                     cur.execute(sql, (product_code, store_code, name, price, number, min_stock, stockdate, expdate, status))
+                    new_items_code = cur.lastrowid
+                    if number:  # 등록 시 입력한 초기 수량을 첫 입고 이력으로도 남김
+                        cur.execute(
+                            "INSERT INTO StockIn (Items_code, StockInDate, Quantity) VALUES (%s, %s, %s)",
+                            (new_items_code, stockdate, number)
+                        )
                 conn.commit()
-                return True
+                return new_items_code
             except Exception:
                 conn.rollback()
-                return False
+                return None
 
     # 상품(Items) 단건 조회 (수정 폼 초기값용)
     def fetch_item(self, items_code):
@@ -152,3 +162,71 @@ class DB:
                 with conn.cursor() as cur:
                     cur.execute(sql)
                     return cur.fetchall()
+
+    # 입고 이력 조회 (해당 배치의 입고 기록 전체)
+    def fetch_stock_in_history(self, items_code):
+        sql = "SELECT StockInDate, Quantity FROM StockIn WHERE Items_code = %s ORDER BY StockInDate"
+        with self.connect() as conn:
+            with conn.cursor() as cur:
+                cur.execute(sql, (items_code,))
+                return cur.fetchall()
+
+    # 입고 등록: 이력 추가 + 재고 수량 증가 + 입고일을 이력 중 가장 빠른 날짜로 갱신
+    def add_stock_in(self, items_code, stock_in_date, quantity):
+        with self.connect() as conn:
+            try:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "INSERT INTO StockIn (Items_code, StockInDate, Quantity) VALUES (%s, %s, %s)",
+                        (items_code, stock_in_date, quantity)
+                    )
+                    cur.execute(
+                        "UPDATE Items SET Number = Number + %s, Stockdate = LEAST(Stockdate, %s) WHERE Items_code = %s",
+                        (quantity, stock_in_date, items_code)
+                    )
+                conn.commit()
+                return True
+            except Exception:
+                conn.rollback()
+                return False
+
+    # 판매 이력 조회 (해당 배치의 판매 기록 전체)
+    def fetch_sale_history(self, items_code):
+        sql = "SELECT SaleDate, Quantity, Price FROM Sales WHERE Items_code = %s ORDER BY SaleDate"
+        with self.connect() as conn:
+            with conn.cursor() as cur:
+                cur.execute(sql, (items_code,))
+                return cur.fetchall()
+
+    # 판매 등록: 이력 추가 + 재고 수량 감소 (재고 부족 여부는 호출하는 쪽에서 미리 검증)
+    def add_sale(self, items_code, sale_date, quantity, price):
+        with self.connect() as conn:
+            try:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "INSERT INTO Sales (Items_code, SaleDate, Quantity, Price) VALUES (%s, %s, %s, %s)",
+                        (items_code, sale_date, quantity, price)
+                    )
+                    cur.execute(
+                        "UPDATE Items SET Number = Number - %s WHERE Items_code = %s",
+                        (quantity, items_code)
+                    )
+                conn.commit()
+                return True
+            except Exception:
+                conn.rollback()
+                return False
+
+    # 해당 점포의 이번 달 매출 (판매 시점 가격 x 수량 합계)
+    def fetch_monthly_revenue(self, store_code, year, month):
+        sql = """
+            SELECT COALESCE(SUM(Sales.Quantity * Sales.Price), 0)
+            FROM Sales
+            JOIN Items ON Sales.Items_code = Items.Items_code
+            WHERE Items.store_code = %s AND YEAR(Sales.SaleDate) = %s AND MONTH(Sales.SaleDate) = %s
+        """
+        with self.connect() as conn:
+            with conn.cursor() as cur:
+                cur.execute(sql, (store_code, year, month))
+                total, = cur.fetchone()
+                return total
