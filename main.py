@@ -153,16 +153,18 @@ class Mainwindow(QMainWindow):
                 cell = QTableWidgetItem("" if value is None else str(value))
                 if is_low_stock:
                     cell.setBackground(LOW_STOCK_COLOR)
-                self.table.setItem(row_index, col_index, cell)
-            row_index += 1
-
-            self.table.insertRow(row_index)
-            for col_index, value in enumerate(display_values):
-                cell = QTableWidgetItem("" if value is None else str(value))
                 if short_date:
                     cell.setBackground(SHORT_DATE_COLOR)
                 self.table.setItem(row_index, col_index, cell)
             row_index += 1
+
+            # self.table.insertRow(row_index)
+            # for col_index, value in enumerate(display_values):
+            #     cell = QTableWidgetItem("" if value is None else str(value))
+            #     if short_date:
+            #         cell.setBackground(SHORT_DATE_COLOR)
+            #     self.table.setItem(row_index, col_index, cell)
+            # row_index += 1
 
         self.calculate_total_asset(items)
         self.update_monthly_revenue_label()

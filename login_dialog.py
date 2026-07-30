@@ -5,7 +5,7 @@ from signup_dialog import SignupDialog
 class LoginDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Log-in")
+        self.setWindowTitle("재고관리")
         self.db = DB(**DB_CONFIG)
 
         self.store_code = QComboBox()
