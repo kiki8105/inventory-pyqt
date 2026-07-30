@@ -15,7 +15,7 @@ class Mainwindow(QMainWindow):
         self.db = DB(**DB_CONFIG)
         self.store_code = store_code
         self.setWindowTitle(f"{store_code} 점포 재고현황")
-        self.resize(900, 600)
+        self.resize(1500, 900)
 
         central = QWidget()
         self.setCentralWidget(central)
