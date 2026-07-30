@@ -10,7 +10,7 @@ from history_dialog import HistoryDialog
 LOW_STOCK_COLOR = QColor("#FFCDD2")  # 부족 재고 행 배경색
 SHORT_DATE_COLOR = QColor("#FF5B6B") # 유통기한 임박 행 배경색
 
-class Mainwindow(QMainWindow):
+class Mainwindow(QMainWindow, QTableWidget):
     def __init__(self, store_code):
         super().__init__()
         self.db = DB(**DB_CONFIG)
@@ -112,6 +112,14 @@ class Mainwindow(QMainWindow):
         viewbox.addLayout(btn_box)
 
         self.load_items()
+        
+    # 빈 공간 클릭 시 선택 해제 // 특정 구간 클릭 시 튕기는 경향이 있음
+    # def mousePressEvent(self, click):
+    #     item = self.itemAt(click.pos())
+    #     if item is None:
+    #         self.clearSelection()
+    #     else:
+    #         super().mousePressEvent(click)
 
     # 날짜 필터를 초기 상태(선택 안 함)로 되돌리고 전체 목록을 다시 표시
     def clear_date_filter(self):

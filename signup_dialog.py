@@ -1,5 +1,6 @@
 from PyQt5.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QFormLayout, QLineEdit, QPushButton, QMessageBox
 from db_helper import DB, DB_CONFIG
+from PyQt5.QtCore import Qt
 
 MIN_STORE_CODE = 100001  # 사용 가능한 점포번호 범위 하한
 MAX_STORE_CODE = 999999  # 사용 가능한 점포번호 범위 상한
@@ -8,19 +9,28 @@ class SignupDialog(QDialog):  # 회원가입 전용 창
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("회원가입")
-        self.resize(500, 180)
+        self.setStyleSheet("font-family: 'Sandoll Gothic'; font-size: 10.5px ; font-weight: bold ; color: #652D90 ; background-color: #9ACD32")
+        self.setFixedSize(500, 160)
         self.db = DB(**DB_CONFIG)
 
         self.store_code = QLineEdit()
+        self.store_code.setStyleSheet("background-color: white ; border: 1px solid black; border-radius: 3px ;")
         self.store_code.setPlaceholderText("100001~999999 사이로 입력")
         self.store_name = QLineEdit()
+        self.store_name.setStyleSheet("background-color: white ; border: 1px solid black; border-radius: 3px ;")
         self.id = QLineEdit()
+        self.id.setStyleSheet("background-color: white ; border: 1px solid black; border-radius: 3px ;")
         self.password = QLineEdit()
+        self.password.setStyleSheet("background-color: white ; border: 1px solid black; border-radius: 3px ;")
         self.password.setEchoMode(QLineEdit.Password)
 
         self.btn_check_store_code = QPushButton("중복확인")
+        self.btn_check_store_code.setFixedSize(80,20)
+        self.btn_check_store_code.setStyleSheet("background-color: #652D90; color: white ; border: 1px solid black ; border-radius: 3px;")
         self.btn_check_store_code.clicked.connect(self.check_store_code_duplicate)
         self.btn_check_id = QPushButton("중복확인")
+        self.btn_check_id.setFixedSize(80,20)
+        self.btn_check_id.setStyleSheet("background-color: #652D90; color: white ; border: 1px solid black ; border-radius: 3px;")
         self.btn_check_id.clicked.connect(self.check_id_duplicate)
 
         store_code_row = QHBoxLayout()
@@ -33,16 +43,18 @@ class SignupDialog(QDialog):  # 회원가입 전용 창
 
         form = QFormLayout()
         form.addRow("점포번호", store_code_row)
-        form.addRow("점포명 (신규 점포일 때만)", self.store_name)
+        form.addRow("점포명 (신규 점포만)", self.store_name)
         form.addRow("아이디", id_row)
         form.addRow("비밀번호", self.password)
 
         self.btn_signup = QPushButton("가입하기")
+        self.btn_signup.setStyleSheet("background-color: #652D90; color: white ; border: 1px solid black ; border-radius: 6px ;")
+        self.btn_signup.setFixedSize(200,20)
         self.btn_signup.clicked.connect(self.try_signup)
 
         layout = QVBoxLayout()
         layout.addLayout(form)
-        layout.addWidget(self.btn_signup)
+        layout.addWidget(self.btn_signup, alignment= Qt.AlignCenter)
         self.setLayout(layout)
 
     # 점포번호가 사용 가능한 범위(100001~999999)의 숫자인지 확인

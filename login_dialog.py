@@ -1,20 +1,29 @@
-from PyQt5.QtWidgets import QDialog, QVBoxLayout, QFormLayout, QLineEdit, QPushButton, QMessageBox, QComboBox
+from PyQt5.QtWidgets import QWidget, QApplication, QDialog, QHBoxLayout, QVBoxLayout, QFormLayout, QLineEdit, QPushButton, QMessageBox, QComboBox
 from db_helper import DB, DB_CONFIG
 from signup_dialog import SignupDialog
+from PyQt5.QtCore import Qt
+from PyQt5.QtGui import QIcon
 
 class LoginDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("재고관리")
+        self.setWindowIcon(QIcon("cu.ico"))
+        self.setFixedSize(300,150)
         self.db = DB(**DB_CONFIG)
+        self.setStyleSheet("font-family: 'Sandoll Gothic'; font-size: 10.5px ; font-weight: bold ; color: #652D90 ; background-color: #9ACD32")
+
 
         self.store_code = QComboBox()
         self.store_code.addItem('')
+        self.store_code.setStyleSheet("background-color: white ; border: 1px solid black; border-radius: 3px ;")
         for code, name in self.db.stores():
             self.store_code.addItem(f'{code} - {name}', code)
 
         self.id = QLineEdit()
+        self.id.setStyleSheet("background-color: white ; border: 1px solid black; border-radius: 3px ;")
         self.password = QLineEdit()
+        self.password.setStyleSheet("background-color: white ; border: 1px solid black; border-radius: 3px ;")
         self.password.setEchoMode(QLineEdit.Password)
 
         form = QFormLayout()
@@ -24,16 +33,20 @@ class LoginDialog(QDialog):
 
         self.btn_login = QPushButton("로그인")
         self.btn_login.clicked.connect(self.try_login)
-        self.btn_login.setStyleSheet("background-color: #B9E0FD; color: black;")
+        self.btn_login.setFixedSize(200,20)
+        self.btn_login.setStyleSheet("background-color: #652D90; color: white ; border: 1px solid black ; border-radius: 6px ;")
 
         self.btn_signup = QPushButton("회원가입")
         self.btn_signup.clicked.connect(self.open_signup)
+        self.btn_signup.setFixedSize(200,20)
+        self.btn_signup.setStyleSheet("background-color: #652D90; color: white; border: 1px solid black ; border-radius: 6px ;")
 
-        layout = QVBoxLayout()
-        layout.addLayout(form)
-        layout.addWidget(self.btn_login)
-        layout.addWidget(self.btn_signup)
-        self.setLayout(layout)
+        Vlayout = QVBoxLayout()
+        Vlayout.addLayout(form)
+        Vlayout.addWidget(self.btn_login, alignment=Qt.AlignCenter)
+        Vlayout.addWidget(self.btn_signup, alignment= Qt.AlignCenter)
+        
+        self.setLayout(Vlayout)
 
     # 회원가입 창을 새로 띄움
     def open_signup(self):
