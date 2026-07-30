@@ -107,7 +107,7 @@ class SignupDialog(QDialog):  # 회원가입 전용 창
         ok = self.db.register_user(store_code, uid, pw)
 
         if ok:
-            QMessageBox.information(self, "회원가입", "회원가입이 완료되었습니다. 로그인해주세요.")
+            QMessageBox.information(self, "회원가입", "회원가입이 완료되었습니다. 프로그램 재실행 후 로그인해주세요.")
             self.accept()
         else:
             QMessageBox.critical(self, "실패", "회원가입에 실패했습니다.")
