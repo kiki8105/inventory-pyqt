@@ -8,6 +8,7 @@ from edit_item_dialog import EditItemDialog
 from history_dialog import HistoryDialog
 
 LOW_STOCK_COLOR = QColor("#FFCDD2")  # 부족 재고 행 배경색
+SHORT_DATE_COLOR = QColor("#FF5B6B") # 유통기한 임박 행 배경색
 
 class Mainwindow(QMainWindow):
     def __init__(self, store_code):
@@ -134,7 +135,8 @@ class Mainwindow(QMainWindow):
         for item in items:
             items_code, product_code, name, price, number, min_stock, stockdate, expdate, status, last_sale_date = item
             asset = (price or 0) * (number or 0)
-            status_text = "판매가능" if status else "판매불가"
+            short_date = expdate.date() <= datetime.date.today()
+            status_text = "판매불가" if (not status or short_date) else "판매가능"
             is_low_stock = min_stock is not None and number is not None and number <= min_stock
 
             if show_low_stock_only and not is_low_stock:
@@ -154,6 +156,14 @@ class Mainwindow(QMainWindow):
                 self.table.setItem(row_index, col_index, cell)
             row_index += 1
 
+            self.table.insertRow(row_index)
+            for col_index, value in enumerate(display_values):
+                cell = QTableWidgetItem("" if value is None else str(value))
+                if short_date:
+                    cell.setBackground(SHORT_DATE_COLOR)
+                self.table.setItem(row_index, col_index, cell)
+            row_index += 1
+
         self.calculate_total_asset(items)
         self.update_monthly_revenue_label()
         self.update_daily_revenue_label()
@@ -169,12 +179,12 @@ class Mainwindow(QMainWindow):
         revenue = self.db.fetch_monthly_revenue(self.store_code, today.year, today.month)
         self.label_monthly_revenue.setText(f"이번 달 매출: {revenue:,}")
 
+
+    # 당일 매출(판매 시점 가격 x 수량 합계)을 라벨에 표시
     def update_daily_revenue_label(self):
         today = datetime.date.today()
         revenue = self.db.fetch_daily_revenue(self.store_code, today.year, today.month, today.day)
         self.label_daily_revenue.setText(f"당일 매출: {revenue:,}")
-
-
 
     # 입고일/판매일 셀을 더블클릭하면 해당 이력 창을 띄움
     def on_cell_double_clicked(self, row, column):
@@ -236,6 +246,7 @@ class Mainwindow(QMainWindow):
         else:
             QMessageBox.critical(self, "실패", "등록 중 오류가 발생했습니다.")
 
+    # 입고일 기준 만료일에 +1년을 추가로 두는 것을 기본으로 함
     def on_stockdate_changed(self):
         new_expdate = self.input_stockdate.dateTime().addYears(1)
         self.input_expdate.setDateTime(new_expdate)
