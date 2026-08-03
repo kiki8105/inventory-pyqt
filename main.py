@@ -167,6 +167,7 @@ class Mainwindow(QMainWindow, QTableWidget):
 
     # 현재 점포의 재고 목록을 불러와 테이블에 표시
     def load_items(self):
+        self.db.disable_zero_stock_items(self.store_code)
         items = self.db.fetch_items(self.store_code)
         show_low_stock_only = self.chk_low_stock_only.isChecked()
         show_sellable_only = self.chk_sellable_only.isChecked()
@@ -346,3 +347,4 @@ class Mainwindow(QMainWindow, QTableWidget):
             self.load_items()
         else:
             QMessageBox.critical(self, "실패", "폐기 중 오류가 발생했습니다.")
+

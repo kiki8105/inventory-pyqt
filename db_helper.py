@@ -143,6 +143,14 @@ class DB:
                 conn.rollback()
                 return False
 
+    # 재고가 0개인 상품은 판매 불가로 전환
+    def disable_zero_stock_items(self, store_code):
+        sql = "UPDATE Items SET Status = FALSE WHERE store_code = %s AND Number = 0 AND Status = TRUE"
+        with self.connect() as conn:
+            with conn.cursor() as cur:
+                cur.execute(sql, (store_code,))
+            conn.commit()
+
     # 상품 폐기: 남은 재고를 이번 달 매출에서 마이너스로 차감, 재고를 0으로
     def dispose_item(self, items_code):
         with self.connect() as conn:
