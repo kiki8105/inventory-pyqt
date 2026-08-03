@@ -90,7 +90,7 @@ class DB:
                 conn.rollback()
                 return False
 
-    # 상품(Items) 전체 조회 (점포별). 마지막 판매일(LastSaleDate)은 판매 이력이 없으면 NULL
+    # 상품 전체 조회 (점포별). 마지막 판매일(LastSaleDate)은 판매 이력이 없으면 NULL
     def fetch_items(self, store_code):
         sql = """
             SELECT Items_code, ProductCode, Name, Price, Number, MinStock, Stockdate, Expdate, Status,
@@ -103,7 +103,7 @@ class DB:
                 return cur.fetchall()
             # [(Items_code, ProductCode, Name, Price, Number, MinStock, Stockdate, Expdate, Status, LastSaleDate), ...]
 
-    # 상품(Items) 추가 (Items_code는 자동 생성, 같은 ProductCode로 여러 배치 등록 가능)
+    # 상품 추가 (Items_code는 자동 생성, 같은 ProductCode로 여러 배치 등록 가능)
     def insert_item(self, product_code, store_code, name, price, number, min_stock, stockdate, expdate, status):
         sql = "INSERT INTO Items (ProductCode, store_code, Name, Price, Number, MinStock, Stockdate, Expdate, Status) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)"
         with self.connect() as conn:
@@ -122,7 +122,7 @@ class DB:
                 conn.rollback()
                 return None
 
-    # 상품(Items) 단건 조회 (수정 폼 초기값용)
+    # 상품 단건 조회
     def fetch_item(self, items_code):
         sql = "SELECT Items_code, ProductCode, Name, Price, Number, MinStock, Stockdate, Expdate, Status FROM Items WHERE Items_code = %s"
         with self.connect() as conn:
@@ -130,7 +130,7 @@ class DB:
                 cur.execute(sql, (items_code,))
                 return cur.fetchone()
 
-    # 상품(Items) 수정 (일련번호는 고정, 나머지 항목만 갱신)
+    # 상품 수정 (일련번호는 고정, 나머지 항목만 갱신)
     def update_item(self, items_code, product_code, name, price, number, min_stock, stockdate, expdate, status):
         sql = "UPDATE Items SET ProductCode = %s, Name = %s, Price = %s, Number = %s, MinStock = %s, Stockdate = %s, Expdate = %s, Status = %s WHERE Items_code = %s"
         with self.connect() as conn:
@@ -143,13 +143,19 @@ class DB:
                 conn.rollback()
                 return False
 
-    # 상품(Items) 삭제 (일련번호 기준)
-    def delete_item(self, items_code):
-        sql = "DELETE FROM Items WHERE Items_code = %s"
+    # 상품 폐기: 남은 재고를 이번 달 매출에서 마이너스로 차감, 재고를 0으로
+    def dispose_item(self, items_code):
         with self.connect() as conn:
             try:
                 with conn.cursor() as cur:
-                    cur.execute(sql, (items_code,))
+                    cur.execute("SELECT Number, Price FROM Items WHERE Items_code = %s", (items_code,))
+                    number, price = cur.fetchone()
+                    if number:
+                        cur.execute(
+                            "INSERT INTO Sales (Items_code, SaleDate, Quantity, Price) VALUES (%s, NOW(), %s, %s)",
+                            (items_code, -number, price)
+                        )
+                    cur.execute("UPDATE Items SET Number = 0 WHERE Items_code = %s", (items_code,))
                 conn.commit()
                 return True
             except Exception:

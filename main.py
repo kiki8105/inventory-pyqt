@@ -1,8 +1,9 @@
 import datetime
-from PyQt5.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QFormLayout, QTableWidget, \
+from PyQt5.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QFormLayout, QGridLayout, QTableWidget, \
     QTableWidgetItem, QLineEdit, QPushButton, QMessageBox, QDateEdit, QCheckBox, QAbstractItemView, QHeaderView, QLabel, QDateTimeEdit
 from PyQt5.QtCore import QDate
-from PyQt5.QtGui import QColor
+from PyQt5.QtGui import QColor, QIcon
+from PyQt5.QtCore import Qt
 from db_helper import DB, DB_CONFIG
 from edit_item_dialog import EditItemDialog
 from history_dialog import HistoryDialog
@@ -14,8 +15,10 @@ class Mainwindow(QMainWindow, QTableWidget):
     def __init__(self, store_code):
         super().__init__()
         self.db = DB(**DB_CONFIG)
+        self.setWindowIcon(QIcon("cu.ico"))
         self.store_code = store_code
         self.setWindowTitle(f"{store_code} 점포 재고현황")
+        self.setStyleSheet("font-family: 'Sandoll Gothic'; color: black; background-color: white")
         self.resize(1500, 900)
 
         central = QWidget()
@@ -26,20 +29,25 @@ class Mainwindow(QMainWindow, QTableWidget):
         self.search_keyword = QLineEdit()
         self.search_keyword.setFixedWidth(400)
         self.search_keyword.setPlaceholderText("상품명/상품코드 검색")
+        self.search_keyword.setStyleSheet("background-color: white ; border: 1px solid black; border-radius: 3px ;")
         self.search_keyword.textChanged.connect(self.load_items)
         self.search_date = QDateEdit()
         self.search_date.setSpecialValueText("입고일을 선택하세요")
+        self.search_date.setStyleSheet("QDateEdit {background-color: white ; border: 1px solid black; border-radius: 3px ;}")
+        self.search_date.setFixedWidth(400)
         self.search_date.setMinimumDate(QDate(2026, 1, 1))
         self.search_date.setDate(self.search_date.minimumDate())
         self.date_filter_enabled = False
         self.search_date.setCalendarPopup(True)
         self.search_date.dateChanged.connect(self.on_date_changed)
 
-        search_box = QHBoxLayout()
+        search_box = QVBoxLayout()
         search_box.addWidget(self.search_keyword)
         search_box.addWidget(self.search_date)
         viewbox.addLayout(search_box)
         self.btn_clear_date = QPushButton('날짜 필터 해제')
+        self.btn_clear_date.setStyleSheet("background-color: #652D90; color: white ; border: 1px solid black ; border-radius: 3px;")
+        self.btn_clear_date.setFixedSize(100, 20)
         search_box.addWidget(self.btn_clear_date)
         self.btn_clear_date.clicked.connect(self.clear_date_filter)
 
@@ -47,6 +55,11 @@ class Mainwindow(QMainWindow, QTableWidget):
         self.chk_low_stock_only = QCheckBox("부족한 재고만 보기")
         self.chk_low_stock_only.stateChanged.connect(self.load_items)
         viewbox.addWidget(self.chk_low_stock_only)
+
+         # 판매 가능한 상품만 보기 필터
+        self.chk_sellable_only = QCheckBox("판매 가능한 상품만 보기")
+        self.chk_sellable_only.stateChanged.connect(self.load_items)
+        viewbox.addWidget(self.chk_sellable_only)
 
         # 재고 목록 테이블
         self.table = QTableWidget()
@@ -57,10 +70,12 @@ class Mainwindow(QMainWindow, QTableWidget):
         self.table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.table.cellDoubleClicked.connect(self.on_cell_double_clicked)
+        self.table.setStyleSheet("background-color: white ; color: black ;")
         viewbox.addWidget(self.table)
 
         # 재고자산 합계 / 이번 달 매출 표시
         self.label_total_asset = QLabel("총 재고자산: 0")
+        self.label_total_asset.setStyleSheet("font-weight: bold; color: blue;")
         viewbox.addWidget(self.label_total_asset)
 
         self.label_daily_revenue = QLabel("당일 매출: 0")
@@ -87,25 +102,44 @@ class Mainwindow(QMainWindow, QTableWidget):
         self.input_status = QCheckBox("정상 판매 가능")
         self.input_status.setChecked(True)
 
-        form = QFormLayout()
-        form.addRow("상품코드", self.input_product_code)
-        form.addRow("상품명", self.input_name)
-        form.addRow("가격", self.input_price)
-        form.addRow("재고", self.input_number)
-        form.addRow("적정재고", self.input_min_stock)
-        form.addRow("입고일", self.input_stockdate)
-        form.addRow("만료일", self.input_expdate)
-        form.addRow("상태", self.input_status)
+        form = QGridLayout()
+        form.addWidget(QLabel("상품코드"), 0, 0)
+        form.addWidget(self.input_product_code, 0, 1)
+        form.addWidget(QLabel("상품명"), 0, 2)
+        form.addWidget(self.input_name, 0, 3)
+
+        form.addWidget(QLabel("재고"), 1, 0)
+        form.addWidget(self.input_number, 1, 1)
+        form.addWidget(QLabel("적정재고"), 1, 2)
+        form.addWidget(self.input_min_stock, 1, 3)
+
+        form.addWidget(QLabel("가격"), 2, 0)
+        form.addWidget(self.input_price, 2, 1)
+
+        form.addWidget(QLabel("입고일"), 3, 0)
+        form.addWidget(self.input_stockdate, 3, 1)
+        form.addWidget(QLabel("만료일"), 3, 2)
+        form.addWidget(self.input_expdate, 3, 3)
+
+        form.addWidget(QLabel("상태"), 4, 0)
+        form.addWidget(self.input_status, 4, 1)
         viewbox.addLayout(form)
 
-        # 등록/수정/삭제 버튼
-        btn_box = QHBoxLayout()
+        # 등록/수정/폐기 버튼
+        btn_box = QVBoxLayout()
         self.btn_add = QPushButton("등록")
+        self.btn_add.setStyleSheet("background-color: #652D90; color: white ; border: 1px solid black ; border-radius: 3px;")
         self.btn_add.clicked.connect(self.add_item)
+        self.btn_add.setFixedSize(300,20)
         self.btn_edit = QPushButton("수정")
+        self.btn_edit.setStyleSheet("background-color: #652D90; color: white ; border: 1px solid black ; border-radius: 3px;")
         self.btn_edit.clicked.connect(self.edit_selected_item)
-        self.btn_delete = QPushButton("삭제")
-        self.btn_delete.clicked.connect(self.delete_selected_item)
+        self.btn_edit.setFixedSize(300,20)
+        self.btn_delete = QPushButton("폐기")
+        self.btn_delete.setStyleSheet("background-color: #652D90; color: white ; border: 1px solid black ; border-radius: 3px;")
+        self.btn_delete.clicked.connect(self.dispose_selected_item)
+        self.btn_delete.setFixedSize(300,20)
+
         btn_box.addWidget(self.btn_add)
         btn_box.addWidget(self.btn_edit)
         btn_box.addWidget(self.btn_delete)
@@ -135,6 +169,7 @@ class Mainwindow(QMainWindow, QTableWidget):
     def load_items(self):
         items = self.db.fetch_items(self.store_code)
         show_low_stock_only = self.chk_low_stock_only.isChecked()
+        show_sellable_only = self.chk_sellable_only.isChecked()
         keyword = self.search_keyword.text().strip().lower()
         date = self.search_date.date()
         self.table.setRowCount(0)
@@ -148,6 +183,8 @@ class Mainwindow(QMainWindow, QTableWidget):
             is_low_stock = min_stock is not None and number is not None and number <= min_stock
 
             if show_low_stock_only and not is_low_stock:
+                continue
+            if show_sellable_only and status_text != "판매가능":
                 continue
             if keyword and keyword not in name.lower() and keyword not in product_code.lower():
                 continue
@@ -278,17 +315,34 @@ class Mainwindow(QMainWindow, QTableWidget):
         if dialog.exec_() == EditItemDialog.Accepted:
             self.load_items()
 
-    # 선택한 행의 상품 삭제
-    def delete_selected_item(self):
+    # 선택한 행의 상품 폐기 (재고를 0으로 만들고, 남은 수량만큼 이번 달 매출/재고자산에서 차감)
+    # 유통기한이 남아있고 판매가능한 상품이면 실수 방지를 위해 한 번 더 확인
+    def dispose_selected_item(self):
         selected = self.table.currentRow()
         if selected < 0:
-            QMessageBox.warning(self, "오류", "삭제할 상품을 선택하세요.")
+            QMessageBox.warning(self, "오류", "폐기할 상품을 선택하세요.")
             return
 
-        items_code = self.table.item(selected, 0).text()
-        ok = self.db.delete_item(items_code)
+        items_code = int(self.table.item(selected, 0).text())
+        item = self.db.fetch_item(items_code)
+        if item is None:
+            QMessageBox.critical(self, "오류", "해당 상품을 찾을 수 없습니다.")
+            return
+
+        _, _, _, _, _, _, _, expdate, status = item
+        still_sellable = status and expdate.date() > datetime.date.today()
+
+        message = "유통기한이 지나지 않은 상품이 있습니다. 그래도 삭제하시겠습니까?" if still_sellable else "정말로 폐기하시겠습니까?"
+        confirm = QMessageBox.question(
+            self, "폐기 확인", message,
+            QMessageBox.Yes | QMessageBox.No, QMessageBox.No
+        )
+        if confirm != QMessageBox.Yes:
+            return
+
+        ok = self.db.dispose_item(items_code)
         if ok:
-            QMessageBox.information(self, "완료", "상품이 삭제되었습니다.")
+            QMessageBox.information(self, "완료", "상품이 폐기되었습니다.")
             self.load_items()
         else:
-            QMessageBox.critical(self, "실패", "삭제 중 오류가 발생했습니다.")
+            QMessageBox.critical(self, "실패", "폐기 중 오류가 발생했습니다.")
