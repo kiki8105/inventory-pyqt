@@ -35,7 +35,10 @@
 - 메인 테이블의 "판매일" 열은 해당 배치의 가장 최근 판매일(`MAX(Sales.SaleDate)`), 없으면 빈 값.
 - "이번 달 매출" 라벨은 로그인한 점포의 이번 달(오늘 기준 연/월) `Sales` 합계(`Quantity x Price`)를 표시하며, 목록을 새로고침할 때마다 갱신된다.
 - 입고일/판매일 셀을 더블클릭하면 `HistoryDialog`가 뜨고, 여기서 등록/조회한 내용은 다이얼로그가 닫히자마자 메인 목록에 자동 반영된다.
-- **상품 삭제 기능은 없다. "폐기"만 있다.** Items 행을 실제로 DELETE하지 않고(입고/판매 이력이 있으면 외래키 제약으로 애초에 안 됨), `Items.Number`를 0으로 만들고 남은 수량만큼을 `Sales`에 음수 수량으로 기록해서 재고자산/월매출/일매출에서 자동으로 차감되게 한다 (`db_helper.dispose_item`, `main.py`의 `dispose_selected_item`). 유통기한이 남아있고 판매가능 상태인 상품을 폐기하려 하면 한 번 더 확인 메시지를 띄운다.
+- **삭제는 두 종류다: "폐기"와 "완전삭제".**
+  - 폐기(`dispose_item`/`dispose_selected_item`): Items 행은 남기고 `Number`만 0으로 만들며, 남은 수량만큼 `Sales`에 음수 수량으로 기록해서 재고자산/월매출/일매출에서 자동으로 차감되게 한다. 유통기한이 남아있고 판매가능 상태인 상품을 폐기하려 하면 한 번 더 확인 메시지를 띄운다.
+  - 완전삭제(`hard_delete_item`/`hard_delete_selected_item`): Items 행과 그 `StockIn`/`Sales` 이력을 통째로 `TrashItems`/`TrashStockIn`/`TrashSales`에 복사한 뒤 원본에서 삭제한다. 이력이 있어도 항상 가능하다 (이력을 먼저 지우고 Items를 지우므로 외래키 제약에 안 걸림).
+- **상품 등록 시 중복 자동 병합**: 상품코드+상품명+가격+만료일이 모두 기존 배치와 같으면, 새 행을 만들지 않고 그 배치에 입고(`add_stock_in`)로 처리한다 (`db_helper.find_matching_item`). 넷 중 하나라도 다르면 새 배치로 등록된다.
 
 ## 변경 이력
 
@@ -56,3 +59,7 @@
 - `main.py`: `delete_selected_item`/`drop_selected_item`을 `dispose_selected_item` 하나로 통합. 버튼도 "삭제"+"폐기" 2개에서 "폐기" 1개로 축소. 유통기한이 남아있고 판매가능한 상품을 폐기하려 하면 별도 확인 메시지로 한 번 더 경고
 - "판매 가능한 상품만 보기" 체크박스(`chk_sellable_only`) 추가, 유통기한 임박(만료일 지남) 행 배경색 강조(`SHORT_DATE_COLOR`) 추가, 만료일 지났거나 상태가 판매불가면 "판매불가"로 표시하도록 `status_text` 계산 로직 반영
 - 상품 등록 폼을 `QVBoxLayout`에서 `QGridLayout`으로 변경해 필드를 2열로 배치 (상품코드|상품명, 재고|적정재고, 가격, 입고일|만료일, 상태)
+- 재고가 0개가 되면 상태를 자동으로 판매불가로 전환 (`db_helper.disable_zero_stock_items`, `load_items` 맨 앞에서 호출해 같은 새로고침에 바로 반영)
+- DB에 `TrashItems`/`TrashStockIn`/`TrashSales` 테이블 추가 (`inventorydb.sql` + 실 DB 반영) — 완전삭제된 상품/이력 보관용, 외래키 없음
+- `db_helper.py`: `find_matching_item`(상품코드+이름+가격+만료일 일치하는 기존 배치 조회), `hard_delete_item`(이력까지 휴지통으로 이동 후 완전삭제) 추가
+- `main.py`: `add_item`이 등록 전에 `find_matching_item`으로 중복 여부를 확인해 일치하면 `add_stock_in`으로 처리하도록 변경. "완전삭제" 버튼/`hard_delete_selected_item` 추가 (폐기와 별개로 항상 사용 가능)

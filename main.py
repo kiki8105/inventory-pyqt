@@ -125,24 +125,47 @@ class Mainwindow(QMainWindow, QTableWidget):
         form.addWidget(self.input_status, 4, 1)
         viewbox.addLayout(form)
 
-        # 등록/수정/폐기 버튼
-        btn_box = QVBoxLayout()
-        self.btn_add = QPushButton("등록")
-        self.btn_add.setStyleSheet("background-color: #652D90; color: white ; border: 1px solid black ; border-radius: 3px;")
-        self.btn_add.clicked.connect(self.add_item)
-        self.btn_add.setFixedSize(300,20)
-        self.btn_edit = QPushButton("수정")
-        self.btn_edit.setStyleSheet("background-color: #652D90; color: white ; border: 1px solid black ; border-radius: 3px;")
-        self.btn_edit.clicked.connect(self.edit_selected_item)
-        self.btn_edit.setFixedSize(300,20)
-        self.btn_delete = QPushButton("폐기")
-        self.btn_delete.setStyleSheet("background-color: #652D90; color: white ; border: 1px solid black ; border-radius: 3px;")
-        self.btn_delete.clicked.connect(self.dispose_selected_item)
-        self.btn_delete.setFixedSize(300,20)
+        btn_box = QGridLayout()
+        btn_box.setSpacing(5)
 
-        btn_box.addWidget(self.btn_add)
-        btn_box.addWidget(self.btn_edit)
-        btn_box.addWidget(self.btn_delete)
+        self.btn_add = QPushButton("등록")
+        self.btn_add.clicked.connect(self.add_item)
+
+        self.btn_edit = QPushButton("수정")
+        self.btn_edit.clicked.connect(self.edit_selected_item)
+
+        self.btn_delete = QPushButton("폐기")
+        self.btn_delete.clicked.connect(self.dispose_selected_item)
+
+        self.btn_hard_delete = QPushButton("삭제")
+        self.btn_hard_delete.clicked.connect(self.hard_delete_selected_item)
+
+        buttons = [
+            self.btn_add,
+            self.btn_edit,
+            self.btn_delete,
+            self.btn_hard_delete
+        ]
+
+        for button in buttons:
+            button.setStyleSheet("""
+                QPushButton {
+                    background-color: #652D90;
+                    color: white;
+                    border: 1px solid black;
+                    border-radius: 3px;
+                }
+            """)
+            button.setFixedSize(400, 25)
+
+        btn_box.addWidget(self.btn_add,         0, 0)
+        btn_box.addWidget(self.btn_edit,        0, 1)
+        btn_box.addWidget(self.btn_delete,      1, 0)
+        btn_box.addWidget(self.btn_hard_delete, 1, 1)
+
+        btn_box.setColumnStretch(0, 1)
+        btn_box.setColumnStretch(1, 1)
+
         viewbox.addLayout(btn_box)
 
         self.load_items()
@@ -275,16 +298,25 @@ class Mainwindow(QMainWindow, QTableWidget):
         stockdate = self.input_stockdate.dateTime().toString("yyyy-MM-dd HH:mm")
         expdate = self.input_expdate.dateTime().toString("yyyy-MM-dd HH:mm")
         status = self.input_status.isChecked()
+        price_value = int(price) if price else None
+        number_value = int(number) if number else None
 
-        ok = self.db.insert_item(
-            product_code, self.store_code, name,
-            int(price) if price else None,
-            int(number) if number else None,
-            int(min_stock) if min_stock else None,
-            stockdate, expdate, status
-        )
+        # 상품코드+상품명+가격+만료일이 모두 같은 기존 배치가 있으면 새 행을 만들지 않고 입고로 처리
+        matched_items_code = self.db.find_matching_item(self.store_code, product_code, name, price_value, expdate)
+        if matched_items_code:
+            ok = self.db.add_stock_in(matched_items_code, stockdate, number_value or 0)
+            success_message = "동일한 상품이 있어 입고로 처리되었습니다."
+        else:
+            ok = self.db.insert_item(
+                product_code, self.store_code, name,
+                price_value, number_value,
+                int(min_stock) if min_stock else None,
+                stockdate, expdate, status
+            )
+            success_message = "상품이 등록되었습니다."
+
         if ok:
-            QMessageBox.information(self, "완료", "상품이 등록되었습니다.")
+            QMessageBox.information(self, "완료", success_message)
             self.input_product_code.clear()
             self.input_name.clear()
             self.input_price.clear()
@@ -347,4 +379,27 @@ class Mainwindow(QMainWindow, QTableWidget):
             self.load_items()
         else:
             QMessageBox.critical(self, "실패", "폐기 중 오류가 발생했습니다.")
+
+    # 선택한 행의 상품을 목록에서 완전히 삭제
+    def hard_delete_selected_item(self):
+        selected = self.table.currentRow()
+        if selected < 0:
+            QMessageBox.warning(self, "오류", "삭제할 상품을 선택하세요.")
+            return
+
+        items_code = int(self.table.item(selected, 0).text())
+        confirm = QMessageBox.question(
+            self, "삭제 확인",
+            "목록에서 완전히 삭제합니다. 입고/판매 이력은 복구가 불가합니다.",
+            QMessageBox.Yes | QMessageBox.No, QMessageBox.No
+        )
+        if confirm != QMessageBox.Yes:
+            return
+
+        ok = self.db.hard_delete_item(items_code)
+        if ok:
+            QMessageBox.information(self, "완료", "완전히 삭제되었습니다.")
+            self.load_items()
+        else:
+            QMessageBox.critical(self, "실패", "삭제 중 오류가 발생했습니다.")
 

@@ -103,6 +103,19 @@ class DB:
                 return cur.fetchall()
             # [(Items_code, ProductCode, Name, Price, Number, MinStock, Stockdate, Expdate, Status, LastSaleDate), ...]
 
+    # 상품코드+상품명+가격+만료일이 모두 같은 기존 배치가 있는지 조회
+    def find_matching_item(self, store_code, product_code, name, price, expdate):
+        sql = """
+            SELECT Items_code FROM Items
+            WHERE store_code = %s AND ProductCode = %s AND Name = %s AND Price = %s AND Expdate = %s
+            LIMIT 1
+        """
+        with self.connect() as conn:
+            with conn.cursor() as cur:
+                cur.execute(sql, (store_code, product_code, name, price, expdate))
+                row = cur.fetchone()
+                return row[0] if row else None
+
     # 상품 추가 (Items_code는 자동 생성, 같은 ProductCode로 여러 배치 등록 가능)
     def insert_item(self, product_code, store_code, name, price, number, min_stock, stockdate, expdate, status):
         sql = "INSERT INTO Items (ProductCode, store_code, Name, Price, Number, MinStock, Stockdate, Expdate, Status) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)"
@@ -170,6 +183,48 @@ class DB:
                 conn.rollback()
                 return False
             
+    def hard_delete_item(self, items_code):
+        with self.connect() as conn:
+            try:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "SELECT Items_code, ProductCode, store_code, Name, Price, Number, MinStock, Stockdate, Expdate, Status FROM Items WHERE Items_code = %s",
+                        (items_code,)
+                    )
+                    item_row = cur.fetchone()
+                    if item_row is None:
+                        return False
+
+                    cur.execute(
+                        "INSERT INTO TrashItems (Items_code, ProductCode, store_code, Name, Price, Number, MinStock, Stockdate, Expdate, Status, DeletedAt) "
+                        "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())",
+                        item_row
+                    )
+
+                    cur.execute("SELECT id, Items_code, StockInDate, Quantity FROM StockIn WHERE Items_code = %s", (items_code,))
+                    for stockin_row in cur.fetchall():
+                        cur.execute(
+                            "INSERT INTO TrashStockIn (id, Items_code, StockInDate, Quantity) VALUES (%s, %s, %s, %s)",
+                            stockin_row
+                        )
+
+                    cur.execute("SELECT id, Items_code, SaleDate, Quantity, Price FROM Sales WHERE Items_code = %s", (items_code,))
+                    for sale_row in cur.fetchall():
+                        cur.execute(
+                            "INSERT INTO TrashSales (id, Items_code, SaleDate, Quantity, Price) VALUES (%s, %s, %s, %s, %s)",
+                            sale_row
+                        )
+
+                    # 자식(이력)부터 지워야 외래키 제약에 걸리지 않음
+                    cur.execute("DELETE FROM StockIn WHERE Items_code = %s", (items_code,))
+                    cur.execute("DELETE FROM Sales WHERE Items_code = %s", (items_code,))
+                    cur.execute("DELETE FROM Items WHERE Items_code = %s", (items_code,))
+                conn.commit()
+                return True
+            except Exception:
+                conn.rollback()
+                return False
+
     def stores(self):
             sql = "SELECT store_code, Name FROM Stores"
             with self.connect() as conn:
@@ -195,8 +250,9 @@ class DB:
                         (items_code, stock_in_date, quantity)
                     )
                     cur.execute(
-                        "UPDATE Items SET Number = Number + %s, Stockdate = LEAST(Stockdate, %s) WHERE Items_code = %s",
-                        (quantity, stock_in_date, items_code)
+                        "UPDATE Items SET Number = Number + %s, Stockdate = LEAST(Stockdate, %s), "
+                        "Status = (Number + %s > 0) WHERE Items_code = %s",
+                        (quantity, stock_in_date, quantity, items_code)
                     )
                 conn.commit()
                 return True

@@ -49,6 +49,35 @@ CREATE TABLE Sales ( -- 판매(출고) 이력
         REFERENCES Items(Items_code)
 );
 
+CREATE TABLE TrashItems ( -- 완전삭제된 상품 보관 (원래 Items_code 값을 그대로 유지, 외래키 없음)
+    Items_code INT PRIMARY KEY,
+    ProductCode VARCHAR(50),
+    store_code INT,
+    Name VARCHAR(50),
+    Price INT,
+    Number INT,
+    MinStock INT,
+    Stockdate DATETIME,
+    Expdate DATETIME,
+    Status BOOLEAN,
+    DeletedAt DATETIME -- 삭제된 시각
+);
+
+CREATE TABLE TrashStockIn ( -- 완전삭제된 상품의 입고 이력 보관
+    id INT PRIMARY KEY,
+    Items_code INT,
+    StockInDate DATETIME,
+    Quantity INT
+);
+
+CREATE TABLE TrashSales ( -- 완전삭제된 상품의 판매 이력 보관
+    id INT PRIMARY KEY,
+    Items_code INT,
+    SaleDate DATETIME,
+    Quantity INT,
+    Price INT
+);
+
 -- Stores 정보 입력
 INSERT INTO Stores (store_code, Name) VALUES
 (100001, '대전 둔산 직영점'),
